@@ -23,6 +23,7 @@ export WINEPREFIX="${WINE_PREFIX_DIR}"
 export WINEARCH="win64"
 export WINEDLLOVERRIDES="winemenubuilder.exe=d"
 export DISPLAY=:0.0
+export NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
 
 # Set internal Docker IP for binding
 INTERNAL_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
@@ -200,8 +201,22 @@ echo ""
 echo "=========================================="
 echo "   Starting Nomad Server"
 echo "=========================================="
-echo "[INFO] Startup command: $@"
+echo "[INFO] Server executable: ${SERVER_EXE}"
+echo "[INFO] Config directory: ${CONFIG_DIR}"
 echo ""
 
-# Replace shell with server process (Pterodactyl requirement)
-exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "$@"
+# Check if a custom startup command was provided
+if [ -z "$*" ] || [ "$1" = "/entrypoint.sh" ]; then
+    echo "[INFO] No custom startup command provided."
+    echo "[INFO] Using default: wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics"
+    echo ""
+    
+    # Start Nomad server with Wine64 in virtual X server
+    exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics
+else
+    echo "[INFO] Custom startup command: $*"
+    echo ""
+    
+    # Execute custom startup command (supports spaces in arguments)
+    exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "$@"
+fi
