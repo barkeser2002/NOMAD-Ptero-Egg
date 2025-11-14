@@ -1,9 +1,29 @@
 #!/bin/bash
+set -euo pipefail
 
 # Nomad Server Pterodactyl Egg Entrypoint
 # Handles installation, configuration, and server launch
 
 cd /home/container || exit 1
+
+# --- Helper Functions ---
+check_dependencies() {
+    echo "[INFO] Checking for required dependencies..."
+    local missing=0
+    for cmd in curl wget aria2c unzip jq wine64 xvfb-run ip; do
+        if ! command -v "$cmd" &> /dev/null; then
+            echo "[ERROR] Dependency missing: $cmd. Please install it in your Dockerfile."
+            missing=1
+        fi
+    done
+    if [ "$missing" -eq 1 ]; then
+        exit 1
+    fi
+    echo "[SUCCESS] All dependencies are installed."
+}
+
+# --- Script Start ---
+check_dependencies
 
 # Print startup banner
 echo "=========================================="
@@ -23,13 +43,12 @@ export WINEPREFIX="${WINE_PREFIX_DIR}"
 export WINEARCH="win64"
 export WINEDLLOVERRIDES="winemenubuilder.exe=d"
 export DISPLAY=:0.0
-export NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
 
 # Set internal Docker IP for binding
-INTERNAL_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
+INTERNAL_IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "0.0.0.0")
 export INTERNAL_IP
 
-echo "Container User: $(whoami)"
+echo "Container User: ${USER}"
 echo "Working Directory: $(pwd)"
 echo "Internal IP: ${INTERNAL_IP}"
 echo ""
@@ -153,7 +172,7 @@ update_config() {
         echo "[CONFIG] config.json not found. Creating a default one."
         cat > "${CONFIG_FILE}" <<-EOF
         {
-          "serverPort": ${SERVER_PORT:-25565},
+          "serverPort": 25565,
           "maxPlayers": 30,
           "password": "",
           "serverName": "Nomad Server",
@@ -178,25 +197,27 @@ EOF
     fi
 
     # Use jq to update values from environment variables if they are set
-    # This makes the egg highly configurable from the Pterodactyl panel
-    if command -v jq &> /dev/null; then
-        echo "[CONFIG] Applying panel settings..."
-        # Example: Update serverPort and maxPlayers. Add more as needed for your egg.
-        TEMP_JSON=$(jq \
-            --argjson port "${SERVER_PORT:-$(jq .serverPort ${CONFIG_FILE})}" \
-            --argjson players "${MAX_PLAYERS:-$(jq .maxPlayers ${CONFIG_FILE})}" \
-            --arg name "${SERVER_NAME:-$(jq .serverName ${CONFIG_FILE})}" \
-            '.serverPort = $port | .maxPlayers = $players | .serverName = $name' \
-            "${CONFIG_FILE}")
-        
-        echo "${TEMP_JSON}" > "${CONFIG_FILE}"
-        echo "[CONFIG] Successfully updated config.json."
-        echo "--- Current Settings ---"
-        echo "${TEMP_JSON}"
-        echo "------------------------"
-    else
-        echo "[WARNING] 'jq' command not found. Cannot dynamically update config.json. Using existing or default values."
-    fi
+    echo "[CONFIG] Applying panel settings..."
+    TEMP_JSON=$(jq \
+        --argjson port "${SERVER_PORT:-$(jq .serverPort ${CONFIG_FILE})}" \
+        --argjson players "${MAX_PLAYERS:-$(jq .maxPlayers ${CONFIG_FILE})}" \
+        --arg name "${SERVER_NAME:-$(jq .serverName ${CONFIG_FILE})}" \
+        --arg password "${SERVER_PASSWORD:-$(jq .password ${CONFIG_FILE})}" \
+        --argjson kits_enabled "${KITS_ENABLED:-$(jq .kits ${CONFIG_FILE})}" \
+        --argjson regular_loot "${REGULAR_LOOT:-$(jq .RegularLoot ${CONFIG_FILE})}" \
+        --argjson medium_loot "${MEDIUM_LOOT:-$(jq .MediumLoot ${CONFIG_FILE})}" \
+        --argjson high_loot "${HIGH_LOOT:-$(jq .HighLoot ${CONFIG_FILE})}" \
+        --argjson zombies "${ZOMBIES:-$(jq .Zombies ${CONFIG_FILE})}" \
+        --argjson deers "${DEERS:-$(jq .Deers ${CONFIG_FILE})}" \
+        '.serverPort = $port | .maxPlayers = $players | .serverName = $name | .password = $password | .kits = $kits_enabled | .RegularLoot = $regular_loot | .MediumLoot = $medium_loot | .HighLoot = $high_loot | .Zombies = $zombies | .Deers = $deers' \
+        "${CONFIG_FILE}")
+    
+    echo "${TEMP_JSON}" > "${CONFIG_FILE}"
+    echo "[CONFIG] Successfully updated config.json."
+    echo "--- Current Settings ---"
+    # Use jq to pretty-print the JSON for readability
+    echo "${TEMP_JSON}" | jq .
+    echo "------------------------"
 }
 
 # --- Main Installation Logic ---

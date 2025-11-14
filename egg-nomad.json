@@ -1,0 +1,134 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY GITHUB COPILOT",
+    "meta": {
+        "version": "2.1.1",
+        "update_url": "https://github.com/barkeser2002/NOMAD-Ptero-Egg"
+    },
+    "exported_at": "2025-11-14T12:00:00+00:00",
+    "name": "Nomad",
+    "author": "barkeser2002@gmail.com",
+    "description": "A Pterodactyl Egg for the survival game Nomad. Runs the Windows dedicated server under Wine.",
+    "features": [
+        "wine"
+    ],
+    "docker_images": {
+        "ghcr.io/barkeser2002/nomad-ptero-egg": "ghcr.io/barkeser2002/nomad-ptero-egg:latest"
+    },
+    "file_denylist": [],
+    "startup": "wine64 Nomad/Nomad.exe -batchmode -nographics",
+    "config": {
+        "files": "{\r\n    \"Nomad/Nomad Server/Config/config.json\": {\r\n        \"parser\": \"json\",\r\n        \"find\": {\r\n            \"serverPort\": \"{{server.build.default.port}}\",\r\n            \"maxPlayers\": \"{{MAX_PLAYERS}}\",\r\n            \"serverName\": \"{{SERVER_NAME}}\",\r\n            \"password\": \"{{SERVER_PASSWORD}}\",\r\n            \"kits\": \"{{KITS_ENABLED}}\",\r\n            \"RegularLoot\": \"{{REGULAR_LOOT}}\",\r\n            \"MediumLoot\": \"{{MEDIUM_LOOT}}\",\r\n            \"HighLoot\": \"{{HIGH_LOOT}}\",\r\n            \"Zombies\": \"{{ZOMBIES}}\",\r\n            \"Deers\": \"{{DEERS}}\"\r\n        }\r\n    }\r\n}",
+        "startup": "{\r\n    \"done\": \"[PTERODACTYL_DONE]\"\r\n}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\r\n# This script is not used as the entrypoint.sh handles the installation.",
+            "container": "debian:bookworm-slim",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Server Name",
+            "description": "The name of the server displayed in the server list.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "Nomad Pterodactyl Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Max Players",
+            "description": "The maximum number of players that can connect to the server.",
+            "env_variable": "MAX_PLAYERS",
+            "default_value": "30",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:1|max:100",
+            "field_type": "text"
+        },
+        {
+            "name": "Server Password",
+            "description": "The password required to join the server. Leave blank for no password.",
+            "env_variable": "SERVER_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Nomad Server Download URL",
+            "description": "The direct download URL for the Nomad server zip file.",
+            "env_variable": "NOMAD_DOWNLOAD_URL",
+            "default_value": "https://fileserver.royalnetwork.xyz/Nomad.zip",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|url",
+            "field_type": "text"
+        },
+        {
+            "name": "Enable Kits",
+            "description": "Enable or disable the kit system on the server.",
+            "env_variable": "KITS_ENABLED",
+            "default_value": "false",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Regular Loot Multiplier",
+            "description": "Multiplier for regular loot spawns.",
+            "env_variable": "REGULAR_LOOT",
+            "default_value": "150",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0",
+            "field_type": "text"
+        },
+        {
+            "name": "Medium Loot Multiplier",
+            "description": "Multiplier for medium-tier loot spawns.",
+            "env_variable": "MEDIUM_LOOT",
+            "default_value": "40",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0",
+            "field_type": "text"
+        },
+        {
+            "name": "High Loot Multiplier",
+            "description": "Multiplier for high-tier loot spawns.",
+            "env_variable": "HIGH_LOOT",
+            "default_value": "30",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0",
+            "field_type": "text"
+        },
+        {
+            "name": "Zombie Count",
+            "description": "The number of zombies to spawn on the map.",
+            "env_variable": "ZOMBIES",
+            "default_value": "60",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0",
+            "field_type": "text"
+        },
+        {
+            "name": "Deer Count",
+            "description": "The number of deers to spawn on the map.",
+            "env_variable": "DEERS",
+            "default_value": "40",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0",
+            "field_type": "text"
+        }
+    ]
+}
