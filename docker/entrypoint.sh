@@ -38,18 +38,32 @@ download_installer() {
     
     echo "Download URL: ${NOMAD_DOWNLOAD_URL}"
     
-    # Use aria2c for faster multi-connection downloads
+    # Try aria2c first for faster downloads
+    # --check-certificate=false: Skip SSL certificate verification (for self-signed certs)
     # -x 16: Use 16 connections per download
     # -s 16: Split download into 16 segments
     # -k 1M: Set min split size to 1MB
     # --file-allocation=none: Don't pre-allocate file space (faster start)
     # --console-log-level=warn: Reduce console output
-    if ! aria2c -x 16 -s 16 -k 1M --file-allocation=none --console-log-level=warn -o "$(basename ${INSTALLER_PATH})" -d "$(dirname ${INSTALLER_PATH})" "${NOMAD_DOWNLOAD_URL}"; then
-        echo "ERROR: Failed to download installer!"
+    # --allow-overwrite=true: Overwrite existing files
+    if command -v aria2c &> /dev/null; then
+        echo "Using aria2c for faster download..."
+        if aria2c --check-certificate=false -x 16 -s 16 -k 1M --file-allocation=none --console-log-level=warn --allow-overwrite=true -o "$(basename ${INSTALLER_PATH})" -d "$(dirname ${INSTALLER_PATH})" "${NOMAD_DOWNLOAD_URL}"; then
+            echo "Download completed successfully with aria2c."
+            return 0
+        else
+            echo "WARNING: aria2c download failed, falling back to wget..."
+        fi
+    fi
+    
+    # Fallback to wget if aria2c is not available or failed
+    echo "Using wget for download..."
+    if ! wget --no-check-certificate -O "${INSTALLER_PATH}" "${NOMAD_DOWNLOAD_URL}"; then
+        echo "ERROR: Failed to download installer with wget!"
         exit 1
     fi
     
-    echo "Download completed successfully."
+    echo "Download completed successfully with wget."
 }
 
 # Function: Extract installer
