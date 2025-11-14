@@ -16,7 +16,7 @@ INSTALL_DIR="/home/container/Nomad"
 WINE_PREFIX_DIR="/home/container/.wine"
 INSTALLER_PATH="/home/container/nomad.zip"
 SERVER_EXE="${INSTALL_DIR}/Nomad.exe"
-CONFIG_DIR="/home/container/.wine/drive_c/users/container/Saved Games/Nomad/Config"
+CONFIG_DIR="${INSTALL_DIR}/Nomad Server/Config"
 
 # Wine environment setup
 export WINEPREFIX="${WINE_PREFIX_DIR}"
@@ -143,6 +143,62 @@ verify_installation() {
     return 0
 }
 
+# Function: Dynamically update config.json from Pterodactyl variables
+update_config() {
+    echo "[CONFIG] Updating config.json from environment variables..."
+    CONFIG_FILE="${CONFIG_DIR}/config.json"
+
+    # Create a default config if it doesn't exist
+    if [ ! -f "${CONFIG_FILE}" ]; then
+        echo "[CONFIG] config.json not found. Creating a default one."
+        cat > "${CONFIG_FILE}" <<-EOF
+        {
+          "serverPort": ${SERVER_PORT:-25565},
+          "maxPlayers": 30,
+          "password": "",
+          "serverName": "Nomad Server",
+          "maxPing": 1000,
+          "motdTimer": 300,
+          "kits": false,
+          "RegularLoot": 150,
+          "MediumLoot": 40,
+          "HighLoot": 30,
+          "IndustrialLoot": 30,
+          "HealthLoot": 30,
+          "FoodLoot": 150,
+          "FireLoot": 30,
+          "SupplyDropTimer": 5400,
+          "MiningNodes": 200,
+          "BarrelSpawns": 80,
+          "PalletSpawns": 50,
+          "Zombies": 60,
+          "Deers": 40
+        }
+EOF
+    fi
+
+    # Use jq to update values from environment variables if they are set
+    # This makes the egg highly configurable from the Pterodactyl panel
+    if command -v jq &> /dev/null; then
+        echo "[CONFIG] Applying panel settings..."
+        # Example: Update serverPort and maxPlayers. Add more as needed for your egg.
+        TEMP_JSON=$(jq \
+            --argjson port "${SERVER_PORT:-$(jq .serverPort ${CONFIG_FILE})}" \
+            --argjson players "${MAX_PLAYERS:-$(jq .maxPlayers ${CONFIG_FILE})}" \
+            --arg name "${SERVER_NAME:-$(jq .serverName ${CONFIG_FILE})}" \
+            '.serverPort = $port | .maxPlayers = $players | .serverName = $name' \
+            "${CONFIG_FILE}")
+        
+        echo "${TEMP_JSON}" > "${CONFIG_FILE}"
+        echo "[CONFIG] Successfully updated config.json."
+        echo "--- Current Settings ---"
+        echo "${TEMP_JSON}"
+        echo "------------------------"
+    else
+        echo "[WARNING] 'jq' command not found. Cannot dynamically update config.json. Using existing or default values."
+    fi
+}
+
 # --- Main Installation Logic ---
 
 echo "[CHECK] Looking for Nomad installation..."
@@ -197,6 +253,9 @@ echo ""
 # Setup configuration
 setup_config
 
+# Update config.json from environment variables
+update_config
+
 # --- Startup Logic ---
 
 echo ""
@@ -218,11 +277,28 @@ echo "[DEBUG] Argument count: ${#STARTUP_CMD[@]}"
 if [ ${#STARTUP_CMD[@]} -eq 0 ] || [ "${STARTUP_CMD[0]}" == "/entrypoint.sh" ] || [ -z "${STARTUP_CMD[0]}" ]; then
     echo "[INFO] No startup command from Pterodactyl. Using default."
     # Set the default command to run
-    STARTUP_CMD=(wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics)
+    STARTUP_CMD=(wine64 Nomad/Nomad.exe -batchmode -nographics)
 fi
 
 echo "[INFO] Final startup command: ${STARTUP_CMD[*]}"
 echo ""
 
-# Execute the final command within a virtual X server
-exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "${STARTUP_CMD[@]}"
+# Run the server in the background
+/usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "${STARTUP_CMD[@]}" &
+
+# Capture the Process ID (PID) of the last background command
+SERVER_PID=$!
+
+# Wait a few seconds to allow the server to initialize
+echo "[INFO] Waiting for server to initialize (5 seconds)..."
+sleep 5
+
+# Echo the "done" message for Pterodactyl to detect
+echo "[PTERODACTYL_DONE] Server should be running now."
+
+# Wait for the server process to exit
+# This keeps the container running as long as the server is running
+wait ${SERVER_PID}
+
+echo "[INFO] Server process with PID ${SERVER_PID} has stopped."
+exit 0
