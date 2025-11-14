@@ -36,7 +36,7 @@ INSTALL_DIR="/home/container/Nomad"
 WINE_PREFIX_DIR="/home/container/.wine"
 INSTALLER_PATH="/home/container/nomad.zip"
 SERVER_EXE="${INSTALL_DIR}/Nomad.exe"
-CONFIG_DIR="${INSTALL_DIR}/Nomad Server/Config"
+CONFIG_DIR="/home/container/Nomad Server/Config"
 
 # Wine environment setup
 export WINEPREFIX="${WINE_PREFIX_DIR}"

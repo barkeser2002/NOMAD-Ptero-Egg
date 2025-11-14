@@ -1,8 +1,8 @@
 {
     "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY GITHUB COPILOT",
     "meta": {
-        "version": "2.1.1",
-        "update_url": "https://github.com/barkeser2002/NOMAD-Ptero-Egg"
+        "version": "PTDL_v2",
+        "update_url": null
     },
     "exported_at": "2025-11-14T12:00:00+00:00",
     "name": "Nomad",
@@ -12,12 +12,12 @@
         "wine"
     ],
     "docker_images": {
-        "ghcr.io/barkeser2002/nomad-ptero-egg": "ghcr.io/barkeser2002/nomad-ptero-egg:latest"
+        "ghcr.io/barkeser2002/nomad-ptero-egg:latest": "ghcr.io/barkeser2002/nomad-ptero-egg:latest"
     },
     "file_denylist": [],
     "startup": "wine64 Nomad/Nomad.exe -batchmode -nographics",
     "config": {
-        "files": "{\r\n    \"Nomad/Nomad Server/Config/config.json\": {\r\n        \"parser\": \"json\",\r\n        \"find\": {\r\n            \"serverPort\": \"{{server.build.default.port}}\",\r\n            \"maxPlayers\": \"{{MAX_PLAYERS}}\",\r\n            \"serverName\": \"{{SERVER_NAME}}\",\r\n            \"password\": \"{{SERVER_PASSWORD}}\",\r\n            \"kits\": \"{{KITS_ENABLED}}\",\r\n            \"RegularLoot\": \"{{REGULAR_LOOT}}\",\r\n            \"MediumLoot\": \"{{MEDIUM_LOOT}}\",\r\n            \"HighLoot\": \"{{HIGH_LOOT}}\",\r\n            \"Zombies\": \"{{ZOMBIES}}\",\r\n            \"Deers\": \"{{DEERS}}\"\r\n        }\r\n    }\r\n}",
+        "files": "{\r\n    \"Nomad Server/Config/config.json\": {\r\n        \"parser\": \"json\",\r\n        \"find\": {\r\n            \"serverPort\": \"{{server.build.default.port}}\",\r\n            \"maxPlayers\": \"{{MAX_PLAYERS}}\",\r\n            \"serverName\": \"{{SERVER_NAME}}\",\r\n            \"password\": \"{{SERVER_PASSWORD}}\",\r\n            \"kits\": \"{{KITS_ENABLED}}\",\r\n            \"RegularLoot\": \"{{REGULAR_LOOT}}\",\r\n            \"MediumLoot\": \"{{MEDIUM_LOOT}}\",\r\n            \"HighLoot\": \"{{HIGH_LOOT}}\",\r\n            \"Zombies\": \"{{ZOMBIES}}\",\r\n            \"Deers\": \"{{DEERS}}\"\r\n        }\r\n    }\r\n}",
         "startup": "{\r\n    \"done\": \"[PTERODACTYL_DONE]\"\r\n}",
         "logs": "{}",
         "stop": "^C"
