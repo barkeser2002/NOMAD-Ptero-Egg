@@ -3,8 +3,8 @@
 FROM debian:bookworm-slim AS builder
 
 # Set maintainer metadata and add a label for easy identification.
-LABEL maintainer="DavidV98"
-LABEL description="DCS World Dedicated Server Builder for Pterodactyl Panel"
+LABEL maintainer="barkeser2002"
+LABEL description="nomad dedicated server builder"
 
 # Configure multi-arch support and install core dependencies.
 # This includes Wine, Winetricks, and wget for downloading files.
@@ -47,7 +47,7 @@ RUN	            wget -q -O /usr/sbin/winetricks https://raw.githubusercontent.co
                 && chmod +x /usr/sbin/winetricks
 
 # Set the WINE architecture and disable the graphical user interface (GUI) for a headless setup.
-ENV WINEARCH="win32"
+ENV WINEARCH="win64"
 ENV WINEDLLOVERRIDES="winemenubuilder.exe=d"
 ENV DISPLAY=:0.0
 
@@ -60,16 +60,17 @@ WORKDIR /home/container
 # This ensures that your container is not reliant on a third-party project for the installer.
 # The URL must be kept up-to-date with the latest from Eagle Dynamics.
 # The installer is specifically for a dedicated server and does not include textures or sounds.[5]
-ENV DCS_DOWNLOAD_URL="https://www.digitalcombatsimulator.com/en/downloads/world/server/"
-RUN wget -O /home/container/DCS_World_Server_modular.exe "${DCS_DOWNLOAD_URL}"
+ENV NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
+RUN wget -O /home/container/nomad.zip "${NOMAD_DOWNLOAD_URL}"
+RUN unzip /home/container/nomad.zip -d /home/container/Nomad
 
 # Stage 2: The Final Production Image
 # We use a clean Debian base image again to build a minimal runtime environment.
 FROM debian:bookworm-slim
 
 # Add maintainer and a label for the final image.
-LABEL maintainer="DavidV98"
-LABEL description="Pterodactyl Egg for DCS World Dedicated Server for Pterodactyl Panel"
+LABEL maintainer="barkeser2002"
+LABEL description="nomad dedicated server builder"
 
 # Configure multi-arch support and install only the necessary runtime dependencies.
 # We are only installing Wine, Wget, and xdotool.
@@ -98,13 +99,13 @@ RUN mkdir -p /home/container
 WORKDIR /home/container
 
 # Copy the DCS installer and the entrypoint script from the builder stage.
-COPY --from=builder --chown=container:container /home/container/DCS_World_Server_modular.exe /home/container/DCS_World_Server_modular.exe
+COPY --from=builder --chown=container:container /home/container/nomad.zip /home/container/nomad.zip
 COPY --chown=container:container entrypoint.sh /home/container/entrypoint.sh
 
 # Expose the default ports for the DCS server.
 # DCS uses two contiguous ports starting from the specified port, for example, 10308 and 10309.[6]
 # It also requires a separate port for its web-based remote control GUI.[6]
-EXPOSE 10308/tcp 10308/udp
+EXPOSE 25565/tcp 25565/udp
 EXPOSE 8088/tcp
 
 # Set the non-root user for the container.
