@@ -111,8 +111,11 @@ EXPOSE 8088/tcp
 # Set the non-root user for the container.
 USER container
 
+RUN wget -O /home/container/entrypoint.sh https://raw.githubusercontent.com/barkeser2002/NOMAD-Ptero-Egg/refs/heads/main/docker/entrypoint.sh
 # Ensure the entrypoint script is executable.
 RUN chmod +x /home/container/entrypoint.sh
+
+# Download the entrypoint script.
 
 # Set the entrypoint for the container. The script will be the main process (PID 1).
 CMD [ "/home/container/entrypoint.sh" ]

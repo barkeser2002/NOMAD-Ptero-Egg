@@ -22,7 +22,18 @@ export WINEARCH="win64"
 export WINEDLLOVERRIDES="winemenubuilder.exe=d"
 # Use a virtual display for the GUI installer.
 export DISPLAY=:0.0
+# Check if the installer file exists, and download it if it doesn't.
+if [ ! -f "${INSTALLER_PATH}" ]; then
+    echo "Nomad installer not found. Downloading..."
+    # The download URL is passed as an environment variable by Pterodactyl.
+    wget -O "${INSTALLER_PATH}" "${NOMAD_DOWNLOAD_URL}"
+fi
 
+# Unzip the installer if the installation directory doesn't exist.
+if [ ! -d "${INSTALL_DIR}" ]; then
+    echo "Unzipping Nomad installer..."
+    unzip "${INSTALLER_PATH}" -d "${INSTALL_DIR}"
+fi
 # Function to perform the initial DCS server installation.
 install_dcs_server() {
     echo "DCS server not found. Starting installation process..."
