@@ -60,9 +60,7 @@ WORKDIR /home/container
 # This ensures that your container is not reliant on a third-party project for the installer.
 # The URL must be kept up-to-date with the latest from Eagle Dynamics.
 # The installer is specifically for a dedicated server and does not include textures or sounds.[5]
-ENV NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
-RUN wget -O /home/container/nomad.zip "${NOMAD_DOWNLOAD_URL}"
-RUN unzip /home/container/nomad.zip -d /home/container/Nomad
+
 
 # Stage 2: The Final Production Image
 # We use a clean Debian base image again to build a minimal runtime environment.
@@ -112,6 +110,8 @@ EXPOSE 8088/tcp
 
 # Set the non-root user for the container.
 USER container
+
+ENV NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
 
 RUN wget -O /home/container/entrypoint.sh https://raw.githubusercontent.com/barkeser2002/NOMAD-Ptero-Egg/refs/heads/main/docker/entrypoint.sh
 # Ensure the entrypoint script is executable.
