@@ -1,19 +1,22 @@
 #!/bin/bash
-set -e  # Exit on error
 
-cd /home/container
-
-# Nomad Server Docker Container Entrypoint
+# Nomad Server Pterodactyl Egg Entrypoint
 # Handles installation, configuration, and server launch
 
-echo "=== Nomad Server Installer & Launcher ==="
+cd /home/container || exit 1
+
+# Print startup banner
+echo "=========================================="
+echo "   Nomad Server - Pterodactyl Edition"
+echo "=========================================="
+echo ""
 
 # Define installation paths
 INSTALL_DIR="/home/container/Nomad"
 WINE_PREFIX_DIR="/home/container/.wine"
 INSTALLER_PATH="/home/container/nomad.zip"
 SERVER_EXE="${INSTALL_DIR}/Nomad.exe"
-CONFIG_PATH="/home/container/.wine/drive_c/users/container/Saved Games/Nomad/Config"
+CONFIG_DIR="/home/container/.wine/drive_c/users/container/Saved Games/Nomad/Config"
 
 # Wine environment setup
 export WINEPREFIX="${WINE_PREFIX_DIR}"
@@ -21,146 +24,184 @@ export WINEARCH="win64"
 export WINEDLLOVERRIDES="winemenubuilder.exe=d"
 export DISPLAY=:0.0
 
-# Set PUID and PGID for proper file permissions
-export PUID=${SERVER_PUID:-1000}
-export PGID=${SERVER_PGID:-1000}
+# Set internal Docker IP for binding
+INTERNAL_IP=$(ip route get 1 | awk '{print $(NF-2);exit}')
+export INTERNAL_IP
 
-echo "Container UID: ${PUID}, GID: ${PGID}"
+echo "Container User: $(whoami)"
+echo "Working Directory: $(pwd)"
+echo "Internal IP: ${INTERNAL_IP}"
+echo ""
 
 # Function: Download Nomad installer
 download_installer() {
-    echo "=== Downloading Nomad installer ==="
+    echo "[INFO] Downloading Nomad installer..."
     
     if [ -z "${NOMAD_DOWNLOAD_URL}" ]; then
-        echo "ERROR: NOMAD_DOWNLOAD_URL environment variable is not set!"
+        echo "[ERROR] NOMAD_DOWNLOAD_URL environment variable is not set!"
+        echo "[ERROR] Please set this variable in your egg configuration."
         exit 1
     fi
     
-    echo "Download URL: ${NOMAD_DOWNLOAD_URL}"
+    echo "[INFO] Download URL: ${NOMAD_DOWNLOAD_URL}"
     
-    # Try aria2c first for faster downloads
-    # --check-certificate=false: Skip SSL certificate verification (for self-signed certs)
-    # -x 16: Use 16 connections per download
-    # -s 16: Split download into 16 segments
-    # -k 1M: Set min split size to 1MB
-    # --file-allocation=none: Don't pre-allocate file space (faster start)
-    # --console-log-level=warn: Reduce console output
-    # --allow-overwrite=true: Overwrite existing files
+    # Try aria2c first for faster downloads (with progress)
     if command -v aria2c &> /dev/null; then
-        echo "Using aria2c for faster download..."
-        if aria2c --check-certificate=false -x 16 -s 16 -k 1M --file-allocation=none --console-log-level=warn --allow-overwrite=true -o "$(basename ${INSTALLER_PATH})" -d "$(dirname ${INSTALLER_PATH})" "${NOMAD_DOWNLOAD_URL}"; then
-            echo "Download completed successfully with aria2c."
+        echo "[INFO] Using aria2c (multi-connection download)..."
+        if aria2c \
+            --check-certificate=false \
+            --max-connection-per-server=16 \
+            --split=16 \
+            --min-split-size=1M \
+            --file-allocation=none \
+            --summary-interval=1 \
+            --allow-overwrite=true \
+            --out="$(basename ${INSTALLER_PATH})" \
+            --dir="$(dirname ${INSTALLER_PATH})" \
+            "${NOMAD_DOWNLOAD_URL}"; then
+            echo "[SUCCESS] Download completed with aria2c."
             return 0
         else
-            echo "WARNING: aria2c download failed, falling back to wget..."
+            echo "[WARNING] aria2c failed, trying wget..."
         fi
     fi
     
-    # Fallback to wget if aria2c is not available or failed
-    echo "Using wget for download..."
-    if ! wget --no-check-certificate -O "${INSTALLER_PATH}" "${NOMAD_DOWNLOAD_URL}"; then
-        echo "ERROR: Failed to download installer with wget!"
+    # Fallback to wget
+    echo "[INFO] Using wget for download..."
+    if wget --no-check-certificate --show-progress -q -O "${INSTALLER_PATH}" "${NOMAD_DOWNLOAD_URL}"; then
+        echo "[SUCCESS] Download completed with wget."
+        return 0
+    else
+        echo "[ERROR] Failed to download installer!"
         exit 1
     fi
-    
-    echo "Download completed successfully with wget."
 }
 
 # Function: Extract installer
 extract_installer() {
-    echo "=== Extracting Nomad installer ==="
+    echo "[INFO] Extracting Nomad installer..."
     
     if [ ! -f "${INSTALLER_PATH}" ]; then
-        echo "ERROR: Installer file not found at ${INSTALLER_PATH}"
+        echo "[ERROR] Installer file not found at ${INSTALLER_PATH}"
         exit 1
     fi
+    
+    # Get file size for verification
+    FILE_SIZE=$(du -h "${INSTALLER_PATH}" | cut -f1)
+    echo "[INFO] Installer size: ${FILE_SIZE}"
     
     mkdir -p "${INSTALL_DIR}"
     
-    if ! unzip -o "${INSTALLER_PATH}" -d "${INSTALL_DIR}"; then
-        echo "ERROR: Failed to extract installer!"
+    if ! unzip -q -o "${INSTALLER_PATH}" -d "${INSTALL_DIR}"; then
+        echo "[ERROR] Failed to extract installer!"
         exit 1
     fi
     
-    echo "Extraction completed successfully."
+    echo "[SUCCESS] Extraction completed."
 }
 
 # Function: Initialize Wine prefix
 initialize_wine() {
-    echo "=== Initializing Wine environment ==="
+    echo "[INFO] Initializing Wine environment..."
     
     if [ ! -d "${WINE_PREFIX_DIR}" ]; then
-        echo "Creating Wine prefix..."
-        wineboot -u
-        echo "Wine prefix created successfully."
+        echo "[INFO] Creating Wine prefix (this may take a moment)..."
+        WINEDLLOVERRIDES="mscoree,mshtml=" wineboot -u 2>/dev/null
+        wineserver -w
+        echo "[SUCCESS] Wine prefix created."
     else
-        echo "Wine prefix already exists. Skipping initialization."
+        echo "[INFO] Wine prefix already exists."
     fi
 }
 
 # Function: Setup configuration directory
 setup_config() {
-    echo "=== Setting up configuration directory ==="
-    mkdir -p "${CONFIG_PATH}"
-    echo "Configuration directory ready at: ${CONFIG_PATH}"
+    echo "[INFO] Setting up configuration directory..."
+    mkdir -p "${CONFIG_DIR}"
+    
+    # Set permissions if possible
+    chmod -R 755 "${CONFIG_DIR}" 2>/dev/null || true
+    
+    echo "[SUCCESS] Configuration directory ready."
 }
 
 # Function: Verify installation
 verify_installation() {
-    echo "=== Verifying installation ==="
+    echo "[INFO] Verifying installation..."
     
     if [ ! -f "${SERVER_EXE}" ]; then
-        echo "ERROR: Nomad.exe not found at ${SERVER_EXE}"
+        echo "[ERROR] Nomad.exe not found at ${SERVER_EXE}"
+        echo "[ERROR] Installation verification failed!"
         return 1
     fi
     
-    echo "Installation verified successfully."
+    # Get file size for confirmation
+    EXE_SIZE=$(du -h "${SERVER_EXE}" | cut -f1)
+    echo "[SUCCESS] Found Nomad.exe (${EXE_SIZE})"
+    echo "[SUCCESS] Installation verified."
     return 0
 }
 
 # --- Main Installation Logic ---
 
-# Check if server is already installed
+echo "[CHECK] Looking for Nomad installation..."
+
 if [ -f "${SERVER_EXE}" ]; then
-    echo "✓ Nomad server already installed."
-    echo "Installation directory: ${INSTALL_DIR}"
+    echo "[SUCCESS] Nomad server is already installed."
+    echo "[INFO] Installation directory: ${INSTALL_DIR}"
 else
-    echo "✗ Nomad server not found. Starting installation..."
+    echo "[INSTALL] Nomad server not found. Starting installation..."
+    echo ""
     
     # Download installer if not present
     if [ ! -f "${INSTALLER_PATH}" ]; then
         download_installer
+        echo ""
     else
-        echo "✓ Installer file already exists."
+        echo "[INFO] Installer file already exists, skipping download."
+        echo ""
     fi
     
     # Extract installer
     extract_installer
+    echo ""
     
     # Initialize Wine
     initialize_wine
+    echo ""
     
     # Verify installation
     if verify_installation; then
-        echo "✓ Installation completed successfully!"
-        # Clean up installer to save space
-        echo "Cleaning up installer file..."
-        rm -f "${INSTALLER_PATH}"
+        echo ""
+        echo "[SUCCESS] Installation completed successfully!"
+        echo ""
+        
+        # Clean up installer to save space (optional)
+        if [ -f "${INSTALLER_PATH}" ]; then
+            FILE_SIZE=$(du -h "${INSTALLER_PATH}" | cut -f1)
+            echo "[CLEANUP] Removing installer file (${FILE_SIZE})..."
+            rm -f "${INSTALLER_PATH}"
+            echo "[SUCCESS] Cleanup completed."
+        fi
     else
-        echo "✗ Installation failed!"
+        echo ""
+        echo "[ERROR] Installation failed!"
+        echo "[ERROR] Please check the logs above for details."
         exit 1
     fi
 fi
 
+echo ""
+
 # Setup configuration
 setup_config
 
-# Launch server
 echo ""
-echo "=== Starting Nomad Server ==="
-echo "Executing startup command: $@"
-echo "=============================="
+echo "=========================================="
+echo "   Starting Nomad Server"
+echo "=========================================="
+echo "[INFO] Startup command: $@"
 echo ""
 
-# Execute the Pterodactyl startup command
-exec "$@"
+# Replace shell with server process (Pterodactyl requirement)
+exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "$@"

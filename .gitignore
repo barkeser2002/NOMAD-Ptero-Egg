@@ -14,3 +14,4 @@ dist/
 # prevents accidental commits of other local panel files.
 pterodactyl/
 !pterodactyl/egg-dcs.json
+Nomad/*

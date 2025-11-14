@@ -68,54 +68,62 @@ FROM debian:bookworm-slim
 
 # Add maintainer and a label for the final image.
 LABEL maintainer="barkeser2002"
-LABEL description="nomad dedicated server builder"
+LABEL description="Nomad Dedicated Server for Pterodactyl"
 
 # Configure multi-arch support and install only the necessary runtime dependencies.
-# We are only installing Wine, Wget, and xdotool.
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
-    wine \
-    wine32 \
-    xdotool \
-    xvfb \
-    x11-utils \
-    xauth \
+    curl \
     aria2 \
+    unzip \
+    ca-certificates \
+    gnupg2 \
+    software-properties-common \
+    xvfb \
+    xauth \
+    x11-utils \
+    iproute2 \
+    tzdata \
     libncurses5:i386 \
-    # Clean up the package cache again.
-    && rm -rf /var/lib/apt/lists/*
+    libncurses6:i386 && \
+    # Install Wine from WineHQ
+    mkdir -pm755 /etc/apt/keyrings && \
+    wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
+    wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources && \
+    apt-get update && \
+    apt-get install -y --install-recommends winehq-stable cabextract wine32 && \
+    # Clean up the package cache
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user to run the server process (Pterodactyl standard)
+RUN useradd -m -d /home/container -s /bin/bash container
 
-    
-# Create a non-root user to run the server process.
-RUN useradd -m container
-
-# Make Pterodactyl data folder
-RUN mkdir -p /home/container
-    
-# Set the working directory for the container process.
+# Set the working directory for the container process
 WORKDIR /home/container
 
-# Copy the DCS installer and the entrypoint script from the builder stage.
-COPY --chown=container:container entrypoint.sh /home/container/entrypoint.sh
+# Copy the entrypoint script
+COPY --chown=container:container entrypoint.sh /entrypoint.sh
 
-# Expose the default ports for the DCS server.
-# DCS uses two contiguous ports starting from the specified port, for example, 10308 and 10309.[6]
-# It also requires a separate port for its web-based remote control GUI.[6]
+# Ensure the entrypoint script is executable
+RUN chmod +x /entrypoint.sh
+
+# Set the non-root user for the container
+USER container
+
+# Set default environment variables
+ENV USER=container
+ENV HOME=/home/container
+ENV WINEARCH=win64
+ENV WINEPREFIX=/home/container/.wine
+ENV WINEDLLOVERRIDES="winemenubuilder.exe=d"
+ENV DISPLAY=:0.0
+
+# Expose the default ports for the Nomad server
 EXPOSE 25565/tcp 25565/udp
 EXPOSE 8088/tcp
 
-# Set the non-root user for the container.
-USER container
-
-ENV NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
-
-# Ensure the entrypoint script is executable.
-RUN chmod +x /home/container/entrypoint.sh
-
-# Download the entrypoint script.
-
-# Set the entrypoint for the container. The script will be the main process (PID 1).
-CMD [ "/home/container/entrypoint.sh" ]
+# Set the entrypoint for the container
+ENTRYPOINT ["/usr/bin/bash", "/entrypoint.sh"]
