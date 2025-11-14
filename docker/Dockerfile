@@ -99,7 +99,6 @@ RUN mkdir -p /home/container
 WORKDIR /home/container
 
 # Copy the DCS installer and the entrypoint script from the builder stage.
-COPY --from=builder --chown=container:container /home/container/nomad.zip /home/container/nomad.zip
 COPY --chown=container:container entrypoint.sh /home/container/entrypoint.sh
 
 # Expose the default ports for the DCS server.
