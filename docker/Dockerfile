@@ -112,7 +112,6 @@ USER container
 
 ENV NOMAD_DOWNLOAD_URL="https://fileserver.royalnetwork.xyz/Nomad.zip"
 
-RUN wget -O /home/container/entrypoint.sh https://raw.githubusercontent.com/barkeser2002/NOMAD-Ptero-Egg/refs/heads/main/docker/entrypoint.sh
 # Ensure the entrypoint script is executable.
 RUN chmod +x /home/container/entrypoint.sh
 
