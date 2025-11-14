@@ -78,6 +78,7 @@ RUN dpkg --add-architecture i386 && \
     curl \
     aria2 \
     unzip \
+    jq \
     ca-certificates \
     gnupg2 \
     software-properties-common \

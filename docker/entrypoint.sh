@@ -197,26 +197,32 @@ echo ""
 # Setup configuration
 setup_config
 
+# --- Startup Logic ---
+
 echo ""
 echo "=========================================="
 echo "   Starting Nomad Server"
 echo "=========================================="
 echo "[INFO] Server executable: ${SERVER_EXE}"
 echo "[INFO] Config directory: ${CONFIG_DIR}"
+
+# Pterodactyl passes the startup command as arguments to this script.
+# We need to parse them correctly.
+STARTUP_CMD=("$@")
+
+# Log received arguments for debugging
+echo "[DEBUG] Received arguments: ${STARTUP_CMD[*]}"
+echo "[DEBUG] Argument count: ${#STARTUP_CMD[@]}"
+
+# If no command is provided by Pterodactyl, use a default.
+if [ ${#STARTUP_CMD[@]} -eq 0 ] || [ "${STARTUP_CMD[0]}" == "/entrypoint.sh" ] || [ -z "${STARTUP_CMD[0]}" ]; then
+    echo "[INFO] No startup command from Pterodactyl. Using default."
+    # Set the default command to run
+    STARTUP_CMD=(wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics)
+fi
+
+echo "[INFO] Final startup command: ${STARTUP_CMD[*]}"
 echo ""
 
-# Check if a custom startup command was provided
-if [ -z "$*" ] || [ "$1" = "/entrypoint.sh" ]; then
-    echo "[INFO] No custom startup command provided."
-    echo "[INFO] Using default: wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics"
-    echo ""
-    
-    # Start Nomad server with Wine64 in virtual X server
-    exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' wine64 Nomad/Nomad.exe -port 25565 -batchmode -nographics
-else
-    echo "[INFO] Custom startup command: $*"
-    echo ""
-    
-    # Execute custom startup command (supports spaces in arguments)
-    exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "$@"
-fi
+# Execute the final command within a virtual X server
+exec /usr/bin/xvfb-run --auto-servernum --server-args='-screen 0 640x480x24:32' "${STARTUP_CMD[@]}"
