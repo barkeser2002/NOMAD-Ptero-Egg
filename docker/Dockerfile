@@ -84,6 +84,8 @@ RUN dpkg --add-architecture i386 && \
     xvfb \
     x11-utils \
     xauth \
+    aria2 \
+    libncurses5:i386 \
     # Clean up the package cache again.
     && rm -rf /var/lib/apt/lists/*
 

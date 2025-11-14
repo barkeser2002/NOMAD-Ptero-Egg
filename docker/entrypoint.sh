@@ -1,84 +1,152 @@
 #!/bin/bash
+set -e  # Exit on error
+
 cd /home/container
 
-# This script is the entrypoint for the DCS server Docker container.
-# It handles installation, updates, configuration generation, and launching the server.
+# Nomad Server Docker Container Entrypoint
+# Handles installation, configuration, and server launch
 
-# Ensure script uses Unix-style line endings to prevent 'command not found' errors.[9]
-# Pterodactyl's installer can handle this, but it's good practice for local testing.
-# dos2unix /home/container/entrypoint.sh
+echo "=== Nomad Server Installer & Launcher ==="
 
-# Define key variables for the DCS installation and configuration.
-# The Pterodactyl panel will pass these values as environment variables.
+# Define installation paths
 INSTALL_DIR="/home/container/Nomad"
 WINE_PREFIX_DIR="/home/container/.wine"
 INSTALLER_PATH="/home/container/nomad.zip"
-UPDATER_EXE="${INSTALL_DIR}/Nomad.exe"
 SERVER_EXE="${INSTALL_DIR}/Nomad.exe"
+CONFIG_PATH="/home/container/.wine/drive_c/users/container/Saved Games/Nomad/Config"
 
-# Set Wine environment variables.
+# Wine environment setup
 export WINEPREFIX="${WINE_PREFIX_DIR}"
 export WINEARCH="win64"
 export WINEDLLOVERRIDES="winemenubuilder.exe=d"
-# Use a virtual display for the GUI installer.
 export DISPLAY=:0.0
-# Check if the installer file exists, and download it if it doesn't.
-if [ ! -f "${INSTALLER_PATH}" ]; then
-    echo "Nomad installer not found. Downloading..."
-    # The download URL is passed as an environment variable by Pterodactyl.
-    wget -O "${INSTALLER_PATH}" "${NOMAD_DOWNLOAD_URL}"
-fi
 
-# Unzip the installer if the installation directory doesn't exist.
-if [ ! -d "${INSTALL_DIR}" ]; then
-    echo "Unzipping Nomad installer..."
-    unzip "${INSTALLER_PATH}" -d "${INSTALL_DIR}"
-fi
-# Function to perform the initial DCS server installation.
-install_dcs_server() {
-    echo "DCS server not found. Starting installation process..."
+# Set PUID and PGID for proper file permissions
+export PUID=${SERVER_PUID:-1000}
+export PGID=${SERVER_PGID:-1000}
+
+echo "Container UID: ${PUID}, GID: ${PGID}"
+
+# Function: Download Nomad installer
+download_installer() {
+    echo "=== Downloading Nomad installer ==="
     
-    # Create a Wine prefix.
-    wineboot -u
+    if [ -z "${NOMAD_DOWNLOAD_URL}" ]; then
+        echo "ERROR: NOMAD_DOWNLOAD_URL environment variable is not set!"
+        exit 1
+    fi
     
-    # After initial install, run the updater to get all files.
+    echo "Download URL: ${NOMAD_DOWNLOAD_URL}"
     
-    echo "DCS server installation completed."
+    # Use aria2c for faster multi-connection downloads
+    # -x 16: Use 16 connections per download
+    # -s 16: Split download into 16 segments
+    # -k 1M: Set min split size to 1MB
+    # --file-allocation=none: Don't pre-allocate file space (faster start)
+    # --console-log-level=warn: Reduce console output
+    if ! aria2c -x 16 -s 16 -k 1M --file-allocation=none --console-log-level=warn -o "$(basename ${INSTALLER_PATH})" -d "$(dirname ${INSTALLER_PATH})" "${NOMAD_DOWNLOAD_URL}"; then
+        echo "ERROR: Failed to download installer!"
+        exit 1
+    fi
+    
+    echo "Download completed successfully."
 }
 
-# Function to update the DCS server and install modules.
-
-
-# Function to dynamically generate configuration files from Pterodactyl variables.
-generate_config_files() {
-    echo "Generating server configuration files..."
+# Function: Extract installer
+extract_installer() {
+    echo "=== Extracting Nomad installer ==="
     
-    # Define a path for the user's saved games, which is where config files are stored.
-    # The -w flag in the startup command points the server to this directory.[10]
-    SAVED_GAMES_PATH="/home/container/.wine/drive_c/users/container/Saved Games/Nomad/Nomad Server/Config"
-    mkdir -p "${SAVED_GAMES_PATH}"
+    if [ ! -f "${INSTALLER_PATH}" ]; then
+        echo "ERROR: Installer file not found at ${INSTALLER_PATH}"
+        exit 1
+    fi
+    
+    mkdir -p "${INSTALL_DIR}"
+    
+    if ! unzip -o "${INSTALLER_PATH}" -d "${INSTALL_DIR}"; then
+        echo "ERROR: Failed to extract installer!"
+        exit 1
+    fi
+    
+    echo "Extraction completed successfully."
+}
 
-# --- Main Logic ---
+# Function: Initialize Wine prefix
+initialize_wine() {
+    echo "=== Initializing Wine environment ==="
+    
+    if [ ! -d "${WINE_PREFIX_DIR}" ]; then
+        echo "Creating Wine prefix..."
+        wineboot -u
+        echo "Wine prefix created successfully."
+    else
+        echo "Wine prefix already exists. Skipping initialization."
+    fi
+}
 
-# Set PUID and PGID for the container process.
-# This ensures file ownership is correct on the host machine.[12]
-echo "Setting container PUID and PGID..."
-export PUID=${SERVER_PUID}
-export PGID=${SERVER_PGID}
+# Function: Setup configuration directory
+setup_config() {
+    echo "=== Setting up configuration directory ==="
+    mkdir -p "${CONFIG_PATH}"
+    echo "Configuration directory ready at: ${CONFIG_PATH}"
+}
 
-# Check if the DCS server is already installed.
-if [ -d "${INSTALL_DIR}" ] && [ -n "$(ls -A ${INSTALL_DIR})" ]; then
-    install_dcs_server
+# Function: Verify installation
+verify_installation() {
+    echo "=== Verifying installation ==="
+    
+    if [ ! -f "${SERVER_EXE}" ]; then
+        echo "ERROR: Nomad.exe not found at ${SERVER_EXE}"
+        return 1
+    fi
+    
+    echo "Installation verified successfully."
+    return 0
+}
+
+# --- Main Installation Logic ---
+
+# Check if server is already installed
+if [ -f "${SERVER_EXE}" ]; then
+    echo "✓ Nomad server already installed."
+    echo "Installation directory: ${INSTALL_DIR}"
 else
-    echo "DCS server already installed. Skipping installation."
-    # The server is already installed, so we run the update process.
-    xvfb-run -a wine "${SERVER_EXE}" -port 25565 -batchmode -nographics
+    echo "✗ Nomad server not found. Starting installation..."
+    
+    # Download installer if not present
+    if [ ! -f "${INSTALLER_PATH}" ]; then
+        download_installer
+    else
+        echo "✓ Installer file already exists."
+    fi
+    
+    # Extract installer
+    extract_installer
+    
+    # Initialize Wine
+    initialize_wine
+    
+    # Verify installation
+    if verify_installation; then
+        echo "✓ Installation completed successfully!"
+        # Clean up installer to save space
+        echo "Cleaning up installer file..."
+        rm -f "${INSTALLER_PATH}"
+    else
+        echo "✗ Installation failed!"
+        exit 1
+    fi
 fi
 
-# Generate configuration files before launching the server.
-generate_config_files
+# Setup configuration
+setup_config
 
-# Finally, launch the server using the Pterodactyl startup command.
-echo "Environment prepared. Executing Pterodactyl's startup command..."
-# The `exec` command replaces the current shell process with the server process.
+# Launch server
+echo ""
+echo "=== Starting Nomad Server ==="
+echo "Executing startup command: $@"
+echo "=============================="
+echo ""
+
+# Execute the Pterodactyl startup command
 exec "$@"
